@@ -17,22 +17,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+case node.platform
+when "redhat","centos","fedora"
+  include_recipe "yum"
 
-execute "apt-get update for jenkins" do
-  command "apt-get update"
-  action :nothing
-end
+  yum_key "jenkins" do
+    key "http://pkg.jenkins-ci.org/redhat/jenkins-ci.org.key"
+  end
 
-execute "add jenkins apt key" do
-  command "apt-key add /tmp/jenkins-ci.org.key"
-  action :nothing
-  notifies :run, resources("execute[apt-get update for jenkins]"), :immediately
-end
+  yum_repo "jenkins" do
+    name "Jenkins YUM Repo"
+    url "http://pkg.jenkins-ci.org/redhat/"
+    action :add
+  end
 
-remote_file "/tmp/jenkins-ci.org.key" do
-  source "http://pkg.jenkins-ci.org/debian/jenkins-ci.org.key"
-  not_if "apt-key list | grep '1024D/D50582E6'"
-  notifies :run, resources("execute[add jenkins apt key]"), :immediately
+when "debian","ubuntu"
+  include_recipe "apt"
+
+  apt_repository "jenkins" do
+    uri "http://pkg.jenkins-ci.org/debian"
+    components ["binary/"]
+    key "http://pkg.jenkins-ci.org/debian/jenkins-ci.org.key"
+    action :add
+  end
+
+else
+  Chef::Log.fatal!("I don't support #{node.platform} yet")
 end
 
 package "jenkins"
@@ -40,4 +50,16 @@ package "jenkins"
 service "jenkins" do
   supports :status => true, :restart => true
   action [ :start, :enable ]
+end
+
+unless node["jenkins"]["plugins"].size == 0
+  node["jenkins"]["plugins"].each do |plug|
+    jenkins "#{plug}" do
+      action :install_plugin
+      cli_jar node["jenkin"]["clijar"]
+      url "http://localhost:8080"
+      path "/var/lib/jenkins"
+      notifies :restart, "service[jenkins]"
+    end
+  end
 end
