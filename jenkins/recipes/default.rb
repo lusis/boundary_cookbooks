@@ -46,17 +46,29 @@ else
 end
 
 package "jenkins"
+package "curl"
 
 service "jenkins" do
   supports :status => true, :restart => true
   action [ :start, :enable ]
 end
 
+remote_file "/var/lib/jenkins/.initial_jenkins_update.json" do
+  source "http://updates.jenkins-ci.org/update-center.json"
+  notifies :run, "execute[bootstrap_plugins_list]", :immediately
+end
+
+execute "bootstrap_plugins_list" do
+  command "sed '1d;$d' .initial_jenkins_update.json > .default.json;curl -X POST -H 'Accept: application/json' -d @.default.json http://localhost:8080/updateCenter/byId/default/postBack --verbose"
+  cwd "/var/lib/jenkins/"
+  action :nothing
+end
+
 unless node["jenkins"]["plugins"].size == 0
   node["jenkins"]["plugins"].each do |plug|
     jenkins "#{plug}" do
       action :install_plugin
-      cli_jar node["jenkin"]["clijar"]
+      cli_jar node["jenkins"]["clijar"]
       url "http://localhost:8080"
       path "/var/lib/jenkins"
       notifies :restart, "service[jenkins]"
