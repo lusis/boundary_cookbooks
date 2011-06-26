@@ -53,14 +53,16 @@ service "jenkins" do
   action [ :start, :enable ]
 end
 
-remote_file "/var/lib/jenkins/.initial_jenkins_update.json" do
+remote_file "/tmp/.initial_jenkins_update.json" do
   source "http://updates.jenkins-ci.org/update-center.json"
   notifies :run, "execute[bootstrap_plugins_list]", :immediately
 end
 
+#r.run_action(:create)
+
 execute "bootstrap_plugins_list" do
-  command "sed '1d;$d' .initial_jenkins_update.json > .default.json;curl -X POST -H 'Accept: application/json' -d @.default.json http://localhost:8080/updateCenter/byId/default/postBack --verbose"
-  cwd "/var/lib/jenkins/"
+  command "sed '1d;$d' .initial_jenkins_update.json > .default.json;curl -X POST -H 'Accept: application/json' -d @.default.json http://localhost:8080/updateCenter/byId/default/postBack --retry 5 --retry-delay 10 --retry-max-time 50 --verbose"
+  cwd "/tmp/"
   action :nothing
 end
 
